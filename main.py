@@ -2,13 +2,20 @@ import asyncio, time
 from datetime import datetime, timedelta, timezone
 import httpx
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import JSONResponse
 
 app = FastAPI()
 cl = httpx.AsyncClient(
-    timeout=httpx.Timeout(15, connect=5),
+    timeout=httpx.Timeout(15, connect=10),
     transport=httpx.AsyncHTTPTransport(retries=2, local_address="0.0.0.0"),
-    headers={"user-agent": "curl"},
+    headers={"user-agent": "cityapi/0.1 (hackathon)"},
 )
+
+# cl = httpx.AsyncClient(
+#     timeout=httpx.Timeout(15, connect=5),
+#     transport=httpx.AsyncHTTPTransport(retries=2),
+#     headers={"user-agent": "curl"},
+# )
 C, L = {}, {}
 
 import json, sqlite3
@@ -59,10 +66,20 @@ async def get(u, **p):
     r.raise_for_status()
     return r.json()
 
+from babel.numbers import get_territory_currencies
+
 async def cn(g):
-    j = await get(f"https://restcountries.com/v3.1/alpha/{g['country_code']}",
-                  fields="name,currencies,languages,population,cca3")
-    return j[0] if isinstance(j, list) else j
+    cc = g["country_code"]
+    j = await get(f"https://api.worldbank.org/v2/country/{cc}", format="json")
+    r = j[1][0]
+    return {
+        "cca3": r["id"],
+        "name": r["name"],
+        "capital": r["capitalCity"],
+        "region": r["region"]["value"],
+        "income": r["incomeLevel"]["value"],
+        "currencies": {c: {} for c in get_territory_currencies(cc)},
+    }
 
 def cnc(g):
     return cached(f"country:{g['country_code']}", 86400, lambda: cn(g))
@@ -153,6 +170,15 @@ S = {
     "vaccines": (86400 * 7, vac, "cc"),
 }
 
+@app.exception_handler(httpx.HTTPError)
+async def he(_, e):
+    try:
+        u = str(e.request.url)
+    except RuntimeError:
+        u = None
+    r = getattr(e, "response", None)
+    return JSONResponse({"err": type(e).__name__, "upstream": r.status_code if r is not None else None,
+                         "url": u, "body": r.text[:200] if r is not None else str(e)}, 502)
 
 @app.get("/city/{name}")
 async def city(name: str, src: list[str] = Query(None)):
@@ -169,7 +195,7 @@ async def city(name: str, src: list[str] = Query(None)):
             v, st = await cached(f"{s}:{k}", ttl, lambda: fn(g))
             return s, {"data": v, "cache": st}
         except Exception as e:
-            return s, {"data": None, "err": repr(e)}
+            return s, {"data": None, "err": f"{type(e).__name__}: {e}"}
 
     res = dict(await asyncio.gather(*(one(s) for s in want)))
     return {"city": {k: g.get(k) for k in ("name", "country", "latitude", "longitude")}, "res": res}
