@@ -7,12 +7,36 @@ app = FastAPI()
 cl = httpx.AsyncClient(timeout=10)
 C, L = {}, {}
 
-async def cached(k, ttl, fn):
+import json, sqlite3
+
+db = sqlite3.connect("cache.db", check_same_thread=False)
+db.execute("pragma journal_mode=wal")
+db.execute("create table if not exists c(k text primary key, exp real, val text)")
+db.execute("delete from c where exp < ?", (time.time() - 7 * 86400,))
+db.commit()
+
+def dget(k):
+    r = db.execute("select exp,val from c where k=?", (k,)).fetchone()
+    return (r[0], json.loads(r[1])) if r else None
+
+def dset(k, exp, v):
+    db.execute("insert or replace into c values(?,?,?)", (k, exp, json.dumps(v)))
+    db.commit()
+
+def look(k):
     e = C.get(k)
+    if not e:
+        e = dget(k)
+        if e:
+            C[k] = e
+    return e
+
+async def cached(k, ttl, fn):
+    e = look(k)
     if e and e[0] > time.time():
         return e[1], "hit"
     async with L.setdefault(k, asyncio.Lock()):
-        e = C.get(k)
+        e = look(k)
         if e and e[0] > time.time():
             return e[1], "hit"
         try:
@@ -21,7 +45,9 @@ async def cached(k, ttl, fn):
             if e:
                 return e[1], "stale"
             raise
-        C[k] = (time.time() + ttl, v)
+        x = time.time() + ttl
+        C[k] = (x, v)
+        dset(k, x, v)
         return v, "miss"
 
 async def get(u, **p):
