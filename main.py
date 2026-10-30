@@ -4,7 +4,11 @@ import httpx
 from fastapi import FastAPI, HTTPException, Query
 
 app = FastAPI()
-cl = httpx.AsyncClient(timeout=10)
+cl = httpx.AsyncClient(
+    timeout=httpx.Timeout(15, connect=5),
+    transport=httpx.AsyncHTTPTransport(retries=2, local_address="0.0.0.0"),
+    headers={"user-agent": "curl"},
+)
 C, L = {}, {}
 
 import json, sqlite3
@@ -55,6 +59,65 @@ async def get(u, **p):
     r.raise_for_status()
     return r.json()
 
+async def cn(g):
+    j = await get(f"https://restcountries.com/v3.1/alpha/{g['country_code']}",
+                  fields="name,currencies,languages,population,cca3")
+    return j[0] if isinstance(j, list) else j
+
+def cnc(g):
+    return cached(f"country:{g['country_code']}", 86400, lambda: cn(g))
+
+async def fx(g):
+    c, _ = await cnc(g)
+    cur = next(iter(c.get("currencies") or {}), None)
+    if not cur:
+        return None
+    if cur == "USD":
+        return {"cur": cur, "per_usd": 1.0}
+    try:
+        j = await get("https://api.frankfurter.dev/v1/latest", base="USD", symbols=cur)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code in (404, 422):
+            return {"cur": cur, "per_usd": None, "note": "unsupported"}
+        raise
+    return {"cur": cur, "per_usd": j["rates"][cur], "date": j["date"]}
+
+async def ds(g):
+    la, lo = g["latitude"], g["longitude"]
+    j = await get("https://eonet.gsfc.nasa.gov/api/v3/events", status="open", days=30,
+                  bbox=f"{lo-3},{la+3},{lo+3},{la-3}")
+    e = j["events"]
+    return {"n": len(e), "items": [{"t": x["title"], "cat": x["categories"][0]["title"]} for x in e[:5]]}
+
+async def cr(g):
+    cc = g["country_code"]
+    j = await get(f"https://api.worldbank.org/v2/country/{cc}/indicator/VC.IHR.PSRC.P5",
+                  format="json", mrnev=1)
+    r = j[1][0] if len(j) > 1 and j[1] else None
+    out = {"homicide_100k": {"v": r["value"], "yr": r["date"]} if r else None}
+    if cc == "GB":
+        c = await get("https://data.police.uk/api/crimes-street/all-crime",
+                      lat=g["latitude"], lng=g["longitude"])
+        n = {}
+        for x in c:
+            n[x["category"]] = n.get(x["category"], 0) + 1
+        out["local"] = {"total": len(c), "by_cat": n}
+    return out
+
+V = {"dtp3": "WHS4_100", "mcv1": "WHS8_110"}
+
+async def vac(g):
+    c, _ = await cnc(g)
+    i3 = c["cca3"]
+
+    async def one(k):
+        j = await get(f"https://ghoapi.azureedge.net/api/{V[k]}",
+                      **{"$filter": f"SpatialDim eq '{i3}'", "$orderby": "TimeDim desc", "$top": 1})
+        r = j["value"]
+        return k, ({"v": r[0]["NumericValue"], "yr": r[0]["TimeDim"]} if r else None)
+
+    return dict(await asyncio.gather(*map(one, V)))
+
 async def geo(n):
     j = await get("https://geocoding-api.open-meteo.com/v1/search", name=n, count=1)
     if not j.get("results"):
@@ -79,17 +142,17 @@ async def eq(g):
     m = [f["properties"]["mag"] for f in j["features"]]
     return {"n": len(m), "max": max(m, default=None)}
 
-async def cn(g):
-    j = await get(f"https://restcountries.com/v3.1/alpha/{g['country_code']}",
-                  fields="name,currencies,languages,population")
-    return j[0] if isinstance(j, list) else j
-
 S = {
-    "weather": (600, wx),
-    "air": (1800, aq),
-    "quakes": (3600, eq),
-    "country": (86400, cn),
+    "weather": (600, wx, "city"),
+    "air": (1800, aq, "city"),
+    "quakes": (3600, eq, "city"),
+    "disasters": (1800, ds, "city"),
+    "crime": (86400, cr, "city"),
+    "country": (86400, cn, "cc"),
+    "fx": (3600, fx, "cc"),
+    "vaccines": (86400 * 7, vac, "cc"),
 }
+
 
 @app.get("/city/{name}")
 async def city(name: str, src: list[str] = Query(None)):
@@ -100,9 +163,10 @@ async def city(name: str, src: list[str] = Query(None)):
     g, _ = await cached(f"geo:{name.lower()}", 30 * 86400, lambda: geo(name))
 
     async def one(s):
-        ttl, fn = S[s]
+        ttl, fn, sc = S[s]
+        k = g["country_code"] if sc == "cc" else g["id"]
         try:
-            v, st = await cached(f"{s}:{g['id']}", ttl, lambda: fn(g))
+            v, st = await cached(f"{s}:{k}", ttl, lambda: fn(g))
             return s, {"data": v, "cache": st}
         except Exception as e:
             return s, {"data": None, "err": repr(e)}
