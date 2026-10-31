@@ -2,9 +2,14 @@ import asyncio, time
 from datetime import datetime, timedelta, timezone
 import httpx
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from pathlib import Path
 
 app = FastAPI()
+
+@app.get("/", include_in_schema=False)
+async def ui():
+    return FileResponse(Path(__file__).with_name("dashboard.html"))
 cl = httpx.AsyncClient(
     timeout=httpx.Timeout(15, connect=10),
     transport=httpx.AsyncHTTPTransport(retries=2, local_address="0.0.0.0"),
