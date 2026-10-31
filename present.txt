@@ -1,0 +1,118 @@
+
+
+
+
+
+Winnas
+
+A normalized city snapshot
+
+
+
+
+
+
+
+
+
+
+PROBLEM STATEMENT
+
+Knowing a city means checking 8 different places.
+
+- Weather, air quality, quakes, disasters, crime, currency and health data
+  all live on separate sites and APIs
+- Every provider has its own format, IDs, limits and quirks
+- Free APIs are flaky: timeouts, blocks, retired endpoints
+- One failure usually breaks the whole app or forces a full refetch
+
+Who feels it: travelers, relocators, insurers, logistics teams, NGOs, and
+developers who just want the data in one place.
+
+
+
+
+
+PROPOSED SOLUTION
+
+One endpoint that returns a normalized city snapshot.
+
+    GET /city/Tokyo
+    GET /city/Nairobi?src=weather&src=fx
+
+- 8 sources behind a single call
+- Pick only what you need with ?src=
+- Each source cached independently, so one failure never forces a refetch
+  of the others
+- Partial results: a failed source returns an error, the rest still arrive
+- If a provider is down, the last good value is served and marked "stale"
+- No API keys needed
+
+
+
+
+
+
+
+SLIDE 3: TECHNICAL STACK AND IMPLEMENTATION
+
+Stack
+- Python, FastAPI, uvicorn
+- httpx (async HTTP client)
+- SQLite plus in-memory cache
+- Babel (offline currency lookup)
+- uv for dependency management
+
+Data sources (all free, no keys)
+- Open-Meteo: geocoding, weather, air quality
+- USGS: earthquakes
+- NASA EONET: natural disasters
+- World Bank: country info, homicide rate
+- data.police.uk: street crime (UK cities)
+- Frankfurter (ECB): currency vs USD
+- WHO GHO: vaccination coverage
+
+How it works
+- Cache key per source: src plus city id (or country code)
+- Two tiers: memory first, then SQLite, then upstream
+- Survives restarts, no cold start refetch storm
+- Per key locks: 100 simultaneous requests cause 1 upstream call
+- Country level sources are shared across cities (Tokyo and Osaka share FX)
+- Adding a source = 1 function plus 1 registry line
+
+
+
+
+
+
+
+
+
+
+
+
+
+SLIDE 4: LIVE DEMO
+
+
+
+
+
+
+
+
+
+
+SLIDE 5: PROJECT IMPACT
+
+Use cases
+- Travel apps: arrival briefing for a destination
+- Relocation tools: compare air quality, safety and currency
+- Insurers and logistics: quick regional risk context
+- NGOs and researchers: fast situational snapshots
+- Developers: a starting point for any "city data" feature
+
+Limits 
+- Crime is country level, except street data for UK cities
+- FX covers currencies published by the ECB
+- Geocoding takes the first match
