@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CityAPI Field Survey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --night: #0f1e26;
+  --deep: #132832;
+  --panel: #162f3a;
+  --contour: #2b5664;
+  --line: #24434f;
+  --ink: #e6eeea;
+  --muted: #8fa8ae;
+  --sodium: #f2b33d;
+  --good: #4fbf7a;
+  --moderate: #e8c547;
+  --usg: #ee8a3c;
+  --bad: #e0524b;
+  --vbad: #a46bd0;
+  --haz: #b8394f;
+  --display: "Bricolage Grotesque", system-ui, sans-serif;
+  --body: "Instrument Sans", system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; }
+html { background: var(--night); }
+body {
+  background: var(--night);
+  color: var(--ink);
+  font: 400 15px/1.5 var(--body);
+  font-variant-numeric: tabular-nums;
+  min-height: 100vh;
+}
+a { color: var(--sodium); }
+:focus-visible { outline: 2px solid var(--sodium); outline-offset: 3px; border-radius: 4px; }
+
+/* top bar */
+.bar {
+  display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+  padding: 18px clamp(16px, 4vw, 48px);
+  border-bottom: 1px solid var(--line);
+}
+.brand { font: 700 20px/1 var(--display); font-stretch: 85%; letter-spacing: -0.01em; }
+.brand span { color: var(--muted); font-weight: 400; }
+form.search { display: flex; flex: 1 1 320px; max-width: 520px; }
+.search input {
+  flex: 1; min-width: 0;
+  background: var(--deep); color: var(--ink);
+  border: 1px solid var(--contour); border-right: 0;
+  border-radius: 8px 0 0 8px;
+  padding: 10px 14px; font: inherit;
+}
+.search input::placeholder { color: var(--muted); }
+.search button {
+  background: var(--sodium); color: #1d1405; border: 0;
+  border-radius: 0 8px 8px 0; padding: 0 18px;
+  font: 600 15px var(--body); cursor: pointer;
+}
+.search button:disabled { opacity: .6; cursor: progress; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chips button {
+  background: none; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px 12px; font: 500 13px var(--body); cursor: pointer;
+}
+.chips button:hover, .chips button[aria-pressed="true"] { color: var(--ink); border-color: var(--contour); }
+
+/* hero map */
+.hero { position: relative; height: clamp(340px, 52vh, 520px); overflow: hidden; border-bottom: 1px solid var(--line); }
+.hero canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hero-text {
+  position: absolute; left: clamp(16px, 4vw, 48px); bottom: clamp(20px, 4vw, 40px); right: 16px;
+  pointer-events: none;
+}
+.place {
+  font: 800 clamp(56px, 12vw, 168px)/0.86 var(--display);
+  font-stretch: 75%; letter-spacing: -0.035em;
+  text-shadow: 0 2px 30px var(--night);
+  overflow-wrap: anywhere;
+}
+.where { margin-top: 14px; display: flex; gap: 20px; flex-wrap: wrap; color: var(--muted); font-size: 15px; }
+.where b { color: var(--ink); font-weight: 600; }
+.now {
+  position: absolute; right: clamp(16px, 4vw, 48px); top: clamp(20px, 4vw, 36px);
+  text-align: right; pointer-events: none;
+}
+.now .t { font: 300 clamp(48px, 7vw, 92px)/1 var(--display); letter-spacing: -0.04em; }
+.now .t sup { font-size: .4em; vertical-align: .9em; margin-left: 2px; color: var(--muted); }
+.now .d { color: var(--muted); margin-top: 4px; }
+.notice {
+  margin: 16px clamp(16px, 4vw, 48px) 0; padding: 10px 14px;
+  border: 1px dashed var(--contour); border-radius: 8px; color: var(--muted); font-size: 14px;
+}
+.notice code { color: var(--ink); }
+
+/* readings grid */
+main {
+  display: grid; gap: 1px; background: var(--line);
+  grid-template-columns: repeat(12, 1fr);
+  margin: 24px clamp(16px, 4vw, 48px);
+  border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+}
+.cell { background: var(--night); padding: 22px 24px 24px; min-width: 0; position: relative; }
+.cell h2 { font: 600 15px/1.2 var(--body); color: var(--muted); display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.w4 { grid-column: span 4; } .w5 { grid-column: span 5; } .w7 { grid-column: span 7; } .w3 { grid-column: span 3; } .w6 { grid-column: span 6; } .w8 { grid-column: span 8; }
+.big { font: 700 64px/1 var(--display); font-stretch: 80%; letter-spacing: -0.03em; margin-top: 16px; }
+.big small { font: 500 18px var(--body); color: var(--muted); letter-spacing: 0; margin-left: 6px; }
+.sub { color: var(--muted); margin-top: 8px; font-size: 14px; }
+.state { font: 500 12px var(--body); color: var(--muted); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.state.hit { color: var(--good); } .state.miss { color: var(--sodium); } .state.stale { color: var(--usg); } .state.err { color: var(--bad); }
+.fail { margin-top: 16px; color: var(--muted); font-size: 14px; }
+.fail b { color: var(--bad); font-weight: 600; display: block; margin-bottom: 4px; }
+.skel { margin-top: 18px; height: 56px; border-radius: 6px; background: var(--deep); }
+
+/* aqi gauge */
+.gauge { display: flex; align-items: center; gap: 20px; margin-top: 12px; flex-wrap: wrap; }
+.gauge svg { width: 180px; height: 104px; flex: none; }
+.band { font: 700 22px/1.15 var(--display); font-stretch: 85%; }
+
+/* quake scale */
+.richter { position: relative; height: 34px; margin-top: 22px; }
+.richter .track { position: absolute; left: 0; right: 0; top: 14px; height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--contour), var(--moderate) 45%, var(--usg) 65%, var(--bad)); opacity: .85; }
+.richter .mark { position: absolute; top: 4px; width: 2px; height: 26px; background: var(--ink); }
+.richter .ticks { position: absolute; left: 0; right: 0; top: 24px; display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
+
+/* bars */
+.bars { display: grid; gap: 14px; margin-top: 18px; }
+.barrow .lbl { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 6px; }
+.barrow .lbl span:last-child { font-weight: 600; }
+.meter { position: relative; height: 8px; background: var(--deep); border-radius: 4px; }
+.meter i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--good); }
+.meter .target { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); opacity: .7; }
+
+dl.facts { display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; margin-top: 16px; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { font-weight: 500; }
+
+ul.events { list-style: none; padding: 0; margin-top: 14px; display: grid; gap: 10px; }
+ul.events li { display: flex; gap: 12px; align-items: baseline; }
+ul.events .cat { flex: none; font-size: 12px; color: var(--night); background: var(--usg); border-radius: 4px; padding: 1px 7px; font-weight: 600; }
+
+/* source health */
+.health { grid-column: 1 / -1; }
+.sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px 24px; margin-top: 16px; }
+.src { border-top: 2px solid var(--line); padding-top: 10px; }
+.src.hit { border-color: var(--good); } .src.miss { border-color: var(--sodium); } .src.stale { border-color: var(--usg); } .src.err { border-color: var(--bad); }
+.src b { display: block; font-weight: 600; }
+.src span { display: block; color: var(--muted); font-size: 13px; }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 18px; color: var(--muted); font-size: 13px; }
+
+footer { padding: 8px clamp(16px, 4vw, 48px) 40px; color: var(--muted); font-size: 13px; }
+
+@media (max-width: 960px) {
+  .w3, .w4, .w5 { grid-column: span 6; }
+  .w7, .w8 { grid-column: span 12; }
+}
+@media (max-width: 640px) {
+  .w3, .w4, .w5, .w6, .w7, .w8 { grid-column: 1 / -1; }
+  .now { top: 16px; }
+  .big { font-size: 52px; }
+  .cell { padding: 18px 16px 20px; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand">CityAPI <span>field survey</span></div>
+  <form class="search" id="f" role="search">
+    <input id="q" name="q" placeholder="Search a city, e.g. Lagos" autocomplete="off" aria-label="City name">
+    <button id="go">Survey</button>
+  </form>
+  <div class="chips" id="chips"></div>
+</header>
+
+<section class="hero" aria-label="City overview">
+  <canvas id="map" aria-hidden="true"></canvas>
+  <div class="now" id="now"></div>
+  <div class="hero-text">
+    <h1 class="place" id="place">—</h1>
+    <div class="where" id="where"></div>
+  </div>
+</section>
+
+<div id="notice"></div>
+
+<main id="grid" aria-live="polite"></main>
+
+<footer>Data from Open-Meteo, USGS, NASA EONET, World Bank, Frankfurter (ECB) and WHO GHO, cached per source by CityAPI. Raw JSON at <a href="/docs">/docs</a>.</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// TTLs mirror the S registry in main.py
+const SOURCES = {
+  weather: ["Weather", 600], air: ["Air quality", 1800], quakes: ["Earthquakes", 3600],
+  disasters: ["Disasters", 1800], crime: ["Crime", 86400], country: ["Country", 86400],
+  fx: ["Currency", 3600], vaccines: ["Vaccines", 604800],
+};
+const CITIES = ["Tokyo", "Nairobi", "London", "Mexico City", "Jakarta", "Reykjavik"];
+
+const WMO = {0:"Clear sky",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",45:"Fog",48:"Rime fog",
+  51:"Light drizzle",53:"Drizzle",55:"Heavy drizzle",56:"Freezing drizzle",57:"Freezing drizzle",
+  61:"Light rain",63:"Rain",65:"Heavy rain",66:"Freezing rain",67:"Freezing rain",
+  71:"Light snow",73:"Snow",75:"Heavy snow",77:"Snow grains",80:"Rain showers",81:"Rain showers",
+  82:"Violent showers",85:"Snow showers",86:"Snow showers",95:"Thunderstorm",96:"Thunderstorm, hail",99:"Thunderstorm, hail"};
+
+const AQI = [[50,"Good","--good"],[100,"Moderate","--moderate"],[150,"Unhealthy for sensitive groups","--usg"],
+  [200,"Unhealthy","--bad"],[300,"Very unhealthy","--vbad"],[Infinity,"Hazardous","--haz"]];
+
+// Shown when the page is opened without the API running
+const SAMPLE = {
+  tokyo: {city:{name:"Tokyo",country:"Japan",latitude:35.6895,longitude:139.69171},res:{
+    weather:{data:{time:"2026-10-30T23:00",temperature_2m:14.9,wind_speed_10m:5.0,weather_code:0},cache:"miss"},
+    air:{data:{us_aqi:151,pm2_5:54.8},cache:"hit"},
+    quakes:{data:{n:19,max:5.5},cache:"miss"},
+    disasters:{data:{n:1,items:[{t:"Typhoon Halong",cat:"Severe Storms"}]},cache:"hit"},
+    crime:{data:{homicide_100k:{v:0.229,yr:"2023"}},cache:"hit"},
+    country:{data:{cca3:"JPN",name:"Japan",capital:"Tokyo",region:"East Asia & Pacific",income:"High income",currencies:{JPY:{}}},cache:"hit"},
+    fx:{data:null,err:"ConnectTimeout: "},
+    vaccines:{data:{dtp3:{v:97,yr:2023},mcv1:{v:96,yr:2023}},cache:"stale"}}},
+  nairobi: {city:{name:"Nairobi",country:"Kenya",latitude:-1.28333,longitude:36.81667},res:{
+    weather:{data:{temperature_2m:22.4,wind_speed_10m:11.2,weather_code:2},cache:"hit"},
+    air:{data:{us_aqi:58,pm2_5:17.1},cache:"miss"},
+    quakes:{data:{n:2,max:3.1},cache:"hit"},
+    disasters:{data:{n:0,items:[]},cache:"hit"},
+    crime:{data:{homicide_100k:{v:4.9,yr:"2022"}},cache:"hit"},
+    country:{data:{cca3:"KEN",name:"Kenya",capital:"Nairobi",region:"Sub-Saharan Africa",income:"Lower middle income",currencies:{KES:{}}},cache:"hit"},
+    fx:{data:{cur:"KES",per_usd:null,note:"unsupported"},cache:"miss"},
+    vaccines:{data:{dtp3:{v:91,yr:2023},mcv1:{v:89,yr:2023}},cache:"hit"}}},
+  london: {city:{name:"London",country:"United Kingdom",latitude:51.50853,longitude:-0.12574},res:{
+    weather:{data:{temperature_2m:9.3,wind_speed_10m:18.7,weather_code:61},cache:"miss"},
+    air:{data:{us_aqi:34,pm2_5:7.9},cache:"hit"},
+    quakes:{data:{n:0,max:null},cache:"hit"},
+    disasters:{data:{n:0,items:[]},cache:"hit"},
+    crime:{data:{homicide_100k:{v:1.1,yr:"2022"},local:{total:1462,by_cat:{"anti-social-behaviour":402,"theft-from-the-person":311,"violent-crime":276,"shoplifting":198,"other-theft":161,"burglary":114}}},cache:"hit"},
+    country:{data:{cca3:"GBR",name:"United Kingdom",capital:"London",region:"Europe & Central Asia",income:"High income",currencies:{GBP:{}}},cache:"hit"},
+    fx:{data:{cur:"GBP",per_usd:0.7712,date:"2026-10-30"},cache:"miss"},
+    vaccines:{data:{dtp3:{v:92,yr:2023},mcv1:{v:89,yr:2023}},cache:"hit"}}},
+};
+
+let demo = false, lastMap = null;
+
+/* ---------- topographic map ---------- */
+function rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
+
+function drawMap(lat, lon, quakeR) {
+  const cv = $("#map"), dpr = Math.min(devicePixelRatio || 1, 2);
+  const W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const x = cv.getContext("2d"); x.scale(dpr, dpr);
+  const r = rng(Math.abs(Math.round(lat * 1000) * 7919 + Math.round(lon * 1000)) % 2147483646 + 1);
+  // terrain: seeded gaussian hills + gentle ridges, centred loosely on the city
+  const hills = Array.from({length: 9}, () => ({x: r() * W, y: r() * H, s: 80 + r() * 260, a: (r() - .35) * 2}));
+  hills.push({x: W * .62, y: H * .48, s: 140, a: 1.3});
+  const fx = r() * 6, fy = r() * 6;
+  const h = (px, py) => {
+    let v = Math.sin(px / 170 + fx) * .18 + Math.cos(py / 130 + fy) * .18;
+    for (const k of hills) v += k.a * Math.exp(-((px - k.x) ** 2 + (py - k.y) ** 2) / (2 * k.s * k.s));
+    return v;
+  };
+  const step = 7, cols = Math.ceil(W / step) + 1, rows = Math.ceil(H / step) + 1;
+  const g = new Float32Array(cols * rows);
+  let lo = Infinity, hi = -Infinity;
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const v = h(i * step, j * step); g[j * cols + i] = v; lo = Math.min(lo, v); hi = Math.max(hi, v);
+  }
+  const levels = 22, segs = [];
+  for (let L = 1; L < levels; L++) {
+    const t = lo + (hi - lo) * L / levels, major = L % 5 === 0;
+    for (let j = 0; j < rows - 1; j++) for (let i = 0; i < cols - 1; i++) {
+      const a = g[j*cols+i], b = g[j*cols+i+1], c = g[(j+1)*cols+i+1], d = g[(j+1)*cols+i];
+      const idx = (a > t) | (b > t) << 1 | (c > t) << 2 | (d > t) << 3;
+      if (!idx || idx === 15) continue;
+      const X = i * step, Y = j * step, lp = (p, q) => (t - p) / (q - p) * step;
+      const e = [[X + lp(a, b), Y], [X + step, Y + lp(b, c)], [X + lp(d, c), Y + step], [X, Y + lp(a, d)]];
+      const T = {1:[[0,3]],2:[[0,1]],3:[[1,3]],4:[[1,2]],5:[[0,1],[2,3]],6:[[0,2]],7:[[2,3]],8:[[2,3]],9:[[0,2]],10:[[0,3],[1,2]],11:[[1,2]],12:[[1,3]],13:[[0,1]],14:[[0,3]]}[idx];
+      for (const [p, q] of T) segs.push([e[p], e[q], major]);
+    }
+  }
+  const cx = W * .62, cy = H * .48;
+  const kmPx = Math.min(W, H) * .42 / 300; // 300 km quake search radius
+  const maxD = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy));
+  const css = getComputedStyle(document.documentElement);
+  const C = n => css.getPropertyValue(n).trim();
+
+  function frame(p) {
+    x.clearRect(0, 0, W, H);
+    const R = p * maxD;
+    x.save(); x.beginPath(); x.arc(cx, cy, R, 0, 7); x.clip();
+    for (const major of [false, true]) {
+      x.beginPath(); x.strokeStyle = major ? C("--contour") : C("--line"); x.lineWidth = major ? 1.3 : .8;
+      for (const [u, v, m] of segs) if (m === major) { x.moveTo(u[0], u[1]); x.lineTo(v[0], v[1]); }
+      x.stroke();
+    }
+    // graticule
+    x.strokeStyle = C("--line"); x.lineWidth = .5; x.setLineDash([2, 6]); x.beginPath();
+    for (let gx = cx % 120; gx < W; gx += 120) { x.moveTo(gx, 0); x.lineTo(gx, H); }
+    for (let gy = cy % 120; gy < H; gy += 120) { x.moveTo(0, gy); x.lineTo(W, gy); }
+    x.stroke(); x.setLineDash([]);
+    x.restore();
+    // quake radius ring
+    const qr = 300 * kmPx * Math.min(1, p * 1.6);
+    x.strokeStyle = quakeR ? C("--usg") : C("--contour"); x.globalAlpha = .75; x.setLineDash([5, 5]);
+    x.beginPath(); x.arc(cx, cy, qr, 0, 7); x.stroke(); x.setLineDash([]); x.globalAlpha = 1;
+    if (p > .5 && W >= 560) {
+      x.fillStyle = C("--muted"); x.font = "12px 'Instrument Sans', sans-serif";
+      x.fillText(quakeR ? `${quakeR} quake${quakeR === 1 ? "" : "s"} within 300 km, last 30 days` : "300 km quake search radius", cx + qr * .72 + 8, Math.min(H - 12, cy + qr * .72 + 12));
+    }
+    // the pin
+    x.fillStyle = C("--sodium");
+    x.beginPath(); x.arc(cx, cy, 6, 0, 7); x.fill();
+    x.strokeStyle = C("--sodium"); x.lineWidth = 1.5;
+    x.beginPath(); x.arc(cx, cy, 14 + 4 * Math.sin(p * Math.PI), 0, 7); x.stroke();
+    x.beginPath(); x.moveTo(cx - 26, cy); x.lineTo(cx - 18, cy); x.moveTo(cx + 18, cy); x.lineTo(cx + 26, cy);
+    x.moveTo(cx, cy - 26); x.lineTo(cx, cy - 18); x.moveTo(cx, cy + 18); x.lineTo(cx, cy + 26); x.stroke();
+  }
+  if (reduced) return frame(1);
+  const t0 = performance.now();
+  const tick = now => { const p = Math.max(0, Math.min(1, (now - t0) / 1400)); frame(1 - (1 - p) ** 3); if (p < 1) requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+}
+
+/* ---------- formatting ---------- */
+const deg = (v, pos, neg) => `${Math.abs(v).toFixed(2)}° ${v >= 0 ? pos : neg}`;
+const ago = s => s >= 86400 ? `${Math.round(s / 86400)} d` : s >= 3600 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 60)} min`;
+const stateTag = r => r.data == null ? `<span class="state err">Unavailable</span>`
+  : `<span class="state ${r.cache}">${{hit:"Cached",miss:"Just fetched",stale:"Stale copy"}[r.cache] || r.cache}</span>`;
+
+function cell(key, r, cls, body) {
+  const [title] = SOURCES[key];
+  const inner = r == null ? `<div class="skel"></div>`
+    : r.data == null ? `<p class="fail"><b>Couldn't reach this source</b>${esc((r.err || "No data returned").split(/ for url|\n/)[0].slice(0, 90).replace(/[:\s]+$/, ""))}. The other readings are unaffected; survey again to retry just this one.</p>`
+    : body(r.data);
+  return `<section class="cell ${cls}"><h2>${title} ${r ? stateTag(r) : ""}</h2>${inner}</section>`;
+}
+
+const meter = (label, v, max, color, target) => `<div class="barrow"><div class="lbl"><span>${label}</span><span>${v}</span></div>
+  <div class="meter"><i style="width:${Math.min(100, max ? Number(String(v).replace(/[^\d.]/g, "")) / max * 100 : 0)}%;background:var(${color})"></i>${target != null ? `<span class="target" style="left:${target}%" title="WHO target ${target}%"></span>` : ""}</div></div>`;
+
+/* ---------- panels ---------- */
+const P = {
+  weather: d => `<div class="big">${Math.round(d.temperature_2m)}°<small>C</small></div>
+    <p class="sub">${esc(WMO[d.weather_code] || "Code " + d.weather_code)}, wind ${d.wind_speed_10m} km/h</p>`,
+  air: d => {
+    const [, name, col] = AQI.find(([m]) => d.us_aqi <= m);
+    const frac = Math.min(d.us_aqi, 300) / 300, a = Math.PI * (1 - frac);
+    const px = 90 + 74 * Math.cos(a), py = 94 - 74 * Math.sin(a);
+    return `<div class="gauge"><svg viewBox="0 0 180 104" role="img" aria-label="US AQI ${d.us_aqi}, ${name}">
+      <path d="M16 94 A74 74 0 0 1 164 94" fill="none" stroke="var(--deep)" stroke-width="12" stroke-linecap="round"/>
+      <path d="M16 94 A74 74 0 0 1 ${px.toFixed(1)} ${py.toFixed(1)}" fill="none" stroke="var(${col})" stroke-width="12" stroke-linecap="round"/>
+      <text x="90" y="86" text-anchor="middle" fill="var(--ink)" style="font:700 40px var(--display)">${d.us_aqi}</text></svg>
+      <div><div class="band" style="color:var(${col})">${name}</div><p class="sub">US AQI. PM2.5 at ${d.pm2_5} µg/m³${d.pm2_5 > 15 ? `, ${(d.pm2_5 / 15).toFixed(1)}× the WHO daily guideline` : ", within the WHO daily guideline"}.</p></div></div>`;
+  },
+  quakes: d => `<div class="big">${d.n}<small>in 30 days</small></div>
+    <p class="sub">${d.n ? `Magnitude 2.5+ within 300 km. Strongest: M${d.max}.` : "No magnitude 2.5+ quakes within 300 km."}</p>
+    ${d.max ? `<div class="richter" aria-hidden="true"><div class="track"></div><div class="mark" style="left:calc(${(Math.min(d.max, 9) - 2.5) / 6.5 * 100}% - 1px)"></div><div class="ticks"><span>2.5</span><span>5</span><span>7</span><span>9</span></div></div>` : ""}`,
+  disasters: d => d.n ? `<ul class="events">${d.items.map(e => `<li><span class="cat">${esc(e.cat)}</span><span>${esc(e.t)}</span></li>`).join("")}</ul>
+    ${d.n > d.items.length ? `<p class="sub">and ${d.n - d.items.length} more open events nearby</p>` : ""}`
+    : `<div class="big">0<small>open events</small></div><p class="sub">NASA EONET lists no active major events within about 300 km.</p>`,
+  crime: d => {
+    const h = d.homicide_100k;
+    let s = h ? `<div class="big">${h.v.toFixed(1)}<small>homicides per 100k</small></div>
+      <p class="sub">National rate, ${esc(h.yr)}. Global average is about 5.8.</p>
+      <div class="bars">${meter("This country", h.v.toFixed(1), 20, h.v > 5.8 ? "--usg" : "--good")}${meter("World", "5.8", 20, "--contour")}</div>`
+      : `<p class="fail">The World Bank has no recent homicide figure for this country.</p>`;
+    if (d.local) {
+      const cats = Object.entries(d.local.by_cat).sort((a, b) => b[1] - a[1]).slice(0, 5), top = cats[0]?.[1] || 1;
+      s += `<p class="sub" style="margin-top:20px">${d.local.total.toLocaleString()} street-level reports nearby last month (police.uk)</p>
+        <div class="bars">${cats.map(([k, v]) => meter(k.replace(/-/g, " ").replace(/^./, c => c.toUpperCase()), v, top, "--sodium")).join("")}</div>`;
+    }
+    return s;
+  },
+  country: d => `<dl class="facts"><dt>Capital</dt><dd>${esc(d.capital)}</dd><dt>Region</dt><dd>${esc(d.region)}</dd>
+    <dt>Income</dt><dd>${esc(d.income)}</dd><dt>Currency</dt><dd>${esc(Object.keys(d.currencies || {}).join(", ") || "Unknown")}</dd></dl>`,
+  fx: d => !d ? `<p class="fail">No currency on record for this country.</p>`
+    : d.per_usd == null ? `<div class="big">${esc(d.cur)}</div><p class="sub">The ECB doesn't publish a rate for ${esc(d.cur)}.</p>`
+    : d.cur === "USD" ? `<div class="big">USD</div><p class="sub">This country uses the US dollar.</p>`
+    : `<div class="big">${d.per_usd.toLocaleString(undefined, {maximumFractionDigits: 4})}<small>${esc(d.cur)}</small></div><p class="sub">per 1 US dollar, ECB rate of ${esc(d.date)}</p>`,
+  vaccines: d => `<div class="bars">${[["dtp3", "Diphtheria, tetanus, pertussis (3 doses)"], ["mcv1", "Measles (first dose)"]].map(([k, n]) =>
+      d[k] ? meter(`${n}, ${d[k].yr}`, `${Math.round(d[k].v)}%`, 100, d[k].v >= 90 ? "--good" : "--usg", 90) : `<p class="sub">${n}: no WHO data</p>`).join("")}</div>
+    <p class="sub">Infant coverage. The marker shows the WHO 90% target.</p>`,
+};
+
+const LAYOUT = [["weather","w4"],["air","w8"],["quakes","w5"],["disasters","w7"],["crime","w7"],["vaccines","w5"],["fx","w4"],["country","w8"]];
+
+function render(j, ms) {
+  const c = j.city, res = j.res || {};
+  $("#place").textContent = c.name;
+  document.title = `${c.name} – CityAPI`;
+  $("#where").innerHTML = `<span><b>${esc(c.country)}</b></span><span>${deg(c.latitude, "N", "S")}, ${deg(c.longitude, "E", "W")}</span>` +
+    (ms != null ? `<span>${Object.keys(res).length} sources in ${ms} ms</span>` : "");
+  const w = res.weather?.data;
+  $("#now").innerHTML = w ? `<div class="t">${Math.round(w.temperature_2m)}<sup>°C</sup></div><div class="d">${esc(WMO[w.weather_code] || "")}</div>` : "";
+  $("#grid").innerHTML = LAYOUT.map(([k, cls]) => cell(k, res[k], cls, P[k])).join("") +
+    `<section class="cell health"><h2>Source health</h2><div class="sources">${Object.entries(SOURCES).map(([k, [n, ttl]]) => {
+      const r = res[k], st = !r ? "" : r.data == null ? "err" : r.cache;
+      const label = {hit: "Served from cache", miss: "Fetched just now", stale: "Refresh failed, old copy", err: "Failed"}[st] || "Not requested";
+      return `<div class="src ${st}"><b>${n}</b><span>${label}</span><span>Refreshes every ${ago(ttl)}</span></div>`;
+    }).join("")}</div></section>`;
+  lastMap = [c.latitude, c.longitude, res.quakes?.data?.n];
+  drawMap(...lastMap);
+}
+
+function renderLoading(name) {
+  $("#place").textContent = name;
+  $("#where").innerHTML = `<span>Surveying ${Object.keys(SOURCES).length} sources…</span>`;
+  $("#now").innerHTML = "";
+  $("#grid").innerHTML = LAYOUT.map(([k, cls]) => cell(k, null, cls)).join("");
+}
+
+function showNotice(html) { $("#notice").innerHTML = html ? `<p class="notice">${html}</p>` : ""; }
+
+async function survey(name) {
+  name = name.trim(); if (!name) return;
+  $("#q").value = name; $("#go").disabled = true;
+  document.querySelectorAll("#chips button").forEach(b => b.setAttribute("aria-pressed", b.textContent === name));
+  history.replaceState(null, "", "#" + encodeURIComponent(name));
+  renderLoading(name);
+  const t0 = performance.now();
+  try {
+    if (demo) throw new TypeError("demo");
+    const r = await fetch(`/city/${encodeURIComponent(name)}`);
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 404) { showNotice(`No city called “${esc(name)}” was found. Check the spelling or try a larger nearby city.`); $("#where").innerHTML = ""; $("#grid").innerHTML = ""; return; }
+    if (!r.ok) throw new Error(j.detail || j.err || `HTTP ${r.status}`);
+    showNotice("");
+    render(j, Math.round(performance.now() - t0));
+  } catch (e) {
+    if (e instanceof TypeError || e instanceof SyntaxError) {
+      demo = true;
+      const s = SAMPLE[name.toLowerCase()];
+      showNotice(`The API isn't reachable from this page, so you're looking at sample data${s ? "" : ` (only Tokyo, Nairobi and London have samples)`}. Run <code>uvicorn main:app</code> and open <code>http://localhost:8000</code> for live readings.`);
+      render(s || SAMPLE.tokyo, null);
+    } else {
+      showNotice(`The geocoder failed for “${esc(name)}”: ${esc(e.message)}. Try again in a moment.`);
+    }
+  } finally { $("#go").disabled = false; }
+}
+
+$("#chips").innerHTML = CITIES.map(c => `<button type="button" aria-pressed="false">${c}</button>`).join("");
+$("#chips").addEventListener("click", e => e.target.closest("button") && survey(e.target.textContent));
+$("#f").addEventListener("submit", e => { e.preventDefault(); survey($("#q").value); });
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => lastMap && drawMap(...lastMap), 200); });
+addEventListener("hashchange", () => {
+  const n = decodeURIComponent(location.hash.slice(1));
+  if (n && n !== $("#q").value) survey(n);
+});
+if (location.protocol === "file:") demo = true;
+survey(decodeURIComponent(location.hash.slice(1)) || "Tokyo");
+</script>
+</body>
+</html>
